@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kasir POS (Mobile / Web)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- HTML5 QR/Barcode Scanner -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col justify-between">
+
+  <!-- Header Kasir -->
+  <header class="bg-indigo-900 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-indigo-700 flex items-center justify-center text-sm">
+          <i class="fa-solid fa-cash-register text-amber-300"></i>
+        </div>
+        <div>
+          <h1 class="text-sm font-bold leading-tight">Kasir POS (Mobile)</h1>
+          <p class="text-[10px] text-indigo-300">Auto FIFO Potong Stok (Port: 3003)</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-1">
+        <button onclick="openHistory()" class="bg-indigo-800 hover:bg-indigo-700 px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-receipt"></i> <span class="hidden sm:inline">Riwayat</span>
+        </button>
+        <button onclick="clearCart()" class="bg-rose-800 hover:bg-rose-700 px-2.5 py-1.5 rounded text-xs font-semibold">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Container Utama -->
+  <main class="max-w-md mx-auto w-full px-3 py-3 space-y-3 flex-1">
+
+    <!-- SCANNER & INPUT BARANG -->
+    <div class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 space-y-2">
+      <div class="flex gap-2">
+        <input type="text" id="barcode-input" placeholder="Scan / Ketik barcode barang..." class="flex-1 px-3 py-2 border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500">
+        <button onclick="handleManualScan()" class="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold">
+          Cari
+        </button>
+        <button id="btn-toggle-cam" onclick="toggleCamera()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow">
+          <i class="fa-solid fa-camera"></i> <span id="cam-status-text">Kamera</span>
+        </button>
+      </div>
+
+      <!-- Kamera Preview Inline -->
+      <div id="camera-container" class="hidden overflow-hidden rounded-lg border border-slate-300 bg-black relative">
+        <div id="reader" class="w-full"></div>
+        <p class="text-center text-[10px] text-slate-300 py-1 bg-black/70">Arahkan kamera ke barcode barang belanjaan</p>
+      </div>
+    </div>
+
+    <!-- KERANJANG BELANJA (CART) -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+      <div class="p-3 bg-slate-50 border-b flex justify-between items-center text-xs font-bold text-slate-700">
+        <span>Keranjang Belanja (<span id="cart-item-count">0</span> barang)</span>
+        <span class="text-indigo-600 font-semibold cursor-pointer" onclick="clearCart()">Kosongkan</span>
+      </div>
+
+      <div id="cart-items-container" class="divide-y divide-slate-100 max-h-72 overflow-y-auto p-2">
+        <div class="p-8 text-center text-slate-400 text-xs">
+          <i class="fa-solid fa-basket-shopping text-3xl mb-2 text-slate-300"></i>
+          <p>Keranjang masih kosong</p>
+          <p class="text-[10px] text-slate-400">Scan barcode barang untuk memasukkan ke keranjang</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RINGKASAN PEMBAYARAN -->
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 space-y-3">
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-slate-500 uppercase font-semibold">Total Tagihan</span>
+        <span id="display-total" class="text-xl font-extrabold text-indigo-700 font-mono">Rp 0</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <label class="block font-medium text-slate-600 mb-1">Uang Diterima (Rp)</label>
+          <input type="number" id="cash-received" oninput="calculateChange()" placeholder="0" class="w-full px-3 py-2 border rounded-lg font-mono font-bold text-slate-800">
+        </div>
+        <div>
+          <label class="block font-medium text-slate-600 mb-1">Kembalian (Rp)</label>
+          <input type="text" id="display-change" readonly value="Rp 0" class="w-full px-3 py-2 border bg-slate-50 rounded-lg font-mono font-bold text-emerald-700">
+        </div>
+      </div>
+
+      <!-- Quick Cash Buttons -->
+      <div class="flex gap-1.5 text-[11px]">
+        <button onclick="setCashExact()" class="flex-1 py-1 bg-slate-100 hover:bg-slate-200 rounded font-semibold text-slate-700">Pas</button>
+        <button onclick="addCash(10000)" class="flex-1 py-1 bg-slate-100 hover:bg-slate-200 rounded font-semibold text-slate-700">+10k</button>
+        <button onclick="addCash(20000)" class="flex-1 py-1 bg-slate-100 hover:bg-slate-200 rounded font-semibold text-slate-700">+20k</button>
+        <button onclick="addCash(50000)" class="flex-1 py-1 bg-slate-100 hover:bg-slate-200 rounded font-semibold text-slate-700">+50k</button>
+        <button onclick="addCash(100000)" class="flex-1 py-1 bg-slate-100 hover:bg-slate-200 rounded font-semibold text-slate-700">+100k</button>
+      </div>
+
+      <button onclick="processCheckout()" id="btn-checkout" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition">
+        <i class="fa-solid fa-money-bill-wave"></i> Bayar Sekarang
+      </button>
+    </div>
+
+  </main>
+
+  <!-- MODAL: STRUK TRANSAKSI SUKSES -->
+  <div id="modal-receipt" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-2xl text-center space-y-3 font-mono">
+      <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-xl">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <div>
+        <h3 class="font-bold text-slate-800 text-base font-sans">Transaksi Sukses!</h3>
+        <p id="receipt-invoice-no" class="text-xs text-slate-500"></p>
+        <p id="receipt-date" class="text-[10px] text-slate-400"></p>
+      </div>
+
+      <div class="border-y border-dashed py-2 text-xs space-y-1 text-left text-slate-700" id="receipt-items-list">
+      </div>
+
+      <div class="text-xs space-y-1 text-right pt-1">
+        <div class="flex justify-between font-bold">
+          <span>Total:</span>
+          <span id="receipt-total"></span>
+        </div>
+        <div class="flex justify-between text-slate-500">
+          <span>Bayar:</span>
+          <span id="receipt-cash"></span>
+        </div>
+        <div class="flex justify-between text-emerald-700 font-bold">
+          <span>Kembalian:</span>
+          <span id="receipt-change"></span>
+        </div>
+      </div>
+
+      <p class="text-[10px] text-slate-400 italic">Stok toko & rak otomatis terpotong (FIFO)</p>
+
+      <button onclick="closeReceipt()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-bold font-sans">
+        Transaksi Baru
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL: RIWAYAT PENJUALAN HARI INI -->
+  <div id="modal-history" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-sm w-full p-4 shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-bold text-sm text-slate-800">Riwayat Penjualan Kasir</h3>
+        <button onclick="closeModal('modal-history')" class="text-slate-400 text-lg">&times;</button>
+      </div>
+      <div class="overflow-y-auto flex-1 divide-y divide-slate-100 text-xs" id="history-list">
+        <p class="text-center py-4 text-slate-400">Memuat riwayat...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cart = []; // [{ id, sku, barcode, name, price, qty, stock_qty }]
+    let html5QrCode = null;
+    let isCameraActive = false;
+
+    // Scan Barcode Manual / Tombol Cari
+    async function handleManualScan() {
+      const barcode = document.getElementById('barcode-input').value.trim();
+      if (!barcode) return;
+      await scanBarcode(barcode);
+      document.getElementById('barcode-input').value = '';
+    }
+
+    document.getElementById('barcode-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        handleManualScan();
+      }
+    });
+
+    // Scan Barcode Logic
+    async function scanBarcode(barcode) {
+      try {
+        const res = await fetch(`/api/items/barcode/${barcode}`);
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error);
+        }
+        const item = await res.json();
+        addToCart(item);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // Add To Cart
+    function addToCart(item) {
+      const existing = cart.find(c => c.id === item.id);
+      if (existing) {
+        if (existing.qty + 1 > item.stock_qty) {
+          alert(`Stok tidak mencukupi! Stok tersedia di toko hanya ${item.stock_qty} pcs`);
+          return;
+        }
+        existing.qty += 1;
+      } else {
+        if (item.stock_qty <= 0) {
+          alert(`Stok barang ${item.name} habis (0 pcs) di toko!`);
+          return;
+        }
+        cart.push({
+          id: item.id,
+          sku: item.sku,
+          barcode: item.barcode,
+          name: item.name,
+          price: Number(item.price),
+          qty: 1,
+          stock_qty: item.stock_qty
+        });
+      }
+      renderCart();
+    }
+
+    function adjustCartQty(index, change) {
+      const item = cart[index];
+      if (!item) return;
+
+      const newQty = item.qty + change;
+      if (newQty <= 0) {
+        cart.splice(index, 1);
+      } else {
+        if (newQty > item.stock_qty) {
+          alert(`Stok maksimal tersedia: ${item.stock_qty} pcs`);
+          return;
+        }
+        item.qty = newQty;
+      }
+      renderCart();
+    }
+
+    function removeCartItem(index) {
+      cart.splice(index, 1);
+      renderCart();
+    }
+
+    function clearCart() {
+      cart = [];
+      document.getElementById('cash-received').value = '';
+      renderCart();
+    }
+
+    // Render Cart
+    function renderCart() {
+      const container = document.getElementById('cart-items-container');
+      const countEl = document.getElementById('cart-item-count');
+      const totalEl = document.getElementById('display-total');
+
+      const totalItems = cart.reduce((sum, it) => sum + it.qty, 0);
+      const totalAmount = cart.reduce((sum, it) => sum + (it.qty * it.price), 0);
+
+      countEl.innerText = totalItems;
+      totalEl.innerText = `Rp ${totalAmount.toLocaleString('id-ID')}`;
+
+      if (cart.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-slate-400 text-xs">
+            <i class="fa-solid fa-basket-shopping text-3xl mb-2 text-slate-300"></i>
+            <p>Keranjang masih kosong</p>
+            <p class="text-[10px] text-slate-400">Scan barcode barang untuk memasukkan ke keranjang</p>
+          </div>
+        `;
+        calculateChange();
+        return;
+      }
+
+      container.innerHTML = cart.map((it, idx) => `
+        <div class="p-2.5 flex justify-between items-center text-xs">
+          <div class="flex-1 pr-2">
+            <p class="font-bold text-slate-800 leading-tight">${it.name}</p>
+            <p class="text-[10px] text-slate-400 font-mono">${it.barcode} | Rp ${it.price.toLocaleString('id-ID')}</p>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button onclick="adjustCartQty(${idx}, -1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">-</button>
+            <span class="w-6 text-center font-bold text-slate-800 font-mono">${it.qty}</span>
+            <button onclick="adjustCartQty(${idx}, 1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">+</button>
+            <span class="w-16 text-right font-bold text-indigo-700 font-mono">Rp ${(it.qty * it.price).toLocaleString('id-ID')}</span>
+            <button onclick="removeCartItem(${idx})" class="text-rose-400 hover:text-rose-600 pl-1 text-sm"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+      `).join('');
+
+      calculateChange();
+    }
+
+    // Cash & Change Calculation
+    function calculateChange() {
+      const total = cart.reduce((sum, it) => sum + (it.qty * it.price), 0);
+      const cash = Number(document.getElementById('cash-received').value) || 0;
+      const change = cash - total;
+
+      document.getElementById('display-change').value = change >= 0 
+        ? `Rp ${change.toLocaleString('id-ID')}` 
+        : `Kurang Rp ${Math.abs(change).toLocaleString('id-ID')}`;
+      
+      document.getElementById('display-change').className = change >= 0
+        ? 'w-full px-3 py-2 border bg-slate-50 rounded-lg font-mono font-bold text-emerald-700'
+        : 'w-full px-3 py-2 border bg-rose-50 rounded-lg font-mono font-bold text-rose-600';
+    }
+
+    function setCashExact() {
+      const total = cart.reduce((sum, it) => sum + (it.qty * it.price), 0);
+      document.getElementById('cash-received').value = total;
+      calculateChange();
+    }
+
+    function addCash(amount) {
+      let current = Number(document.getElementById('cash-received').value) || 0;
+      document.getElementById('cash-received').value = current + amount;
+      calculateChange();
+    }
+
+    // Checkout
+    async function processCheckout() {
+      if (cart.length === 0) return alert('Keranjang belanja masih kosong!');
+      const total = cart.reduce((sum, it) => sum + (it.qty * it.price), 0);
+      const cash = Number(document.getElementById('cash-received').value) || total;
+
+      if (cash < total) {
+        return alert(`Uang yang diterima kurang Rp ${(total - cash).toLocaleString('id-ID')}!`);
+      }
+
+      try {
+        const payload = {
+          cashier: 'Kasir HP',
+          cash_received: cash,
+          items: cart.map(it => ({
+            item_id: it.id,
+            qty: it.qty,
+            price: it.price
+          }))
+        };
+
+        const res = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        // Tampilkan Struk
+        showReceipt(result, cart);
+        clearCart();
+      } catch (err) {
+        alert('Gagal transaksi: ' + err.message);
+      }
+    }
+
+    function showReceipt(result, soldItems) {
+      document.getElementById('receipt-invoice-no').innerText = result.invoice_no;
+      document.getElementById('receipt-date').innerText = new Date(result.date).toLocaleString('id-ID');
+      
+      const list = document.getElementById('receipt-items-list');
+      list.innerHTML = soldItems.map(it => `
+        <div class="flex justify-between">
+          <span>${it.name} x${it.qty}</span>
+          <span>Rp ${(it.qty * it.price).toLocaleString('id-ID')}</span>
+        </div>
+      `).join('');
+
+      document.getElementById('receipt-total').innerText = `Rp ${result.total.toLocaleString('id-ID')}`;
+      document.getElementById('receipt-cash').innerText = `Rp ${result.cash_received.toLocaleString('id-ID')}`;
+      document.getElementById('receipt-change').innerText = `Rp ${result.change.toLocaleString('id-ID')}`;
+
+      openModal('modal-receipt');
+    }
+
+    function closeReceipt() {
+      closeModal('modal-receipt');
+    }
+
+    // Toggle Camera Scanner
+    function toggleCamera() {
+      if (isCameraActive) {
+        stopCamera();
+      } else {
+        startCamera();
+      }
+    }
+
+    function startCamera() {
+      const container = document.getElementById('camera-container');
+      container.classList.remove('hidden');
+
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+      }
+
+      const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+          scanBarcode(decodedText);
+        },
+        () => {}
+      ).then(() => {
+        isCameraActive = true;
+        document.getElementById('cam-status-text').innerText = 'Tutup Cam';
+        document.getElementById('btn-toggle-cam').className = 'bg-rose-600 hover:bg-rose-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow';
+      }).catch(err => {
+        alert("Gagal mengaktifkan kamera: " + err);
+        container.classList.add('hidden');
+      });
+    }
+
+    function stopCamera() {
+      if (html5QrCode && isCameraActive) {
+        html5QrCode.stop().then(() => {
+          isCameraActive = false;
+          document.getElementById('camera-container').classList.add('hidden');
+          document.getElementById('cam-status-text').innerText = 'Kamera';
+          document.getElementById('btn-toggle-cam').className = 'bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow';
+        });
+      }
+    }
+
+    // History Modal
+    async function openHistory() {
+      openModal('modal-history');
+      try {
+        const res = await fetch('/api/sales');
+        const sales = await res.json();
+        const list = document.getElementById('history-list');
+        if (sales.length === 0) {
+          list.innerHTML = '<p class="text-center py-6 text-slate-400">Belum ada transaksi penjualan</p>';
+          return;
+        }
+        list.innerHTML = sales.map(s => `
+          <div class="py-2.5">
+            <div class="flex justify-between font-bold text-slate-800">
+              <span>${s.invoice_no}</span>
+              <span class="text-indigo-700">Rp ${Number(s.total).toLocaleString('id-ID')}</span>
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+              <span>${new Date(s.date).toLocaleTimeString('id-ID')} (${s.total_qty} pcs)</span>
+              <span>${s.cashier || 'Kasir'}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard Gudang</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-indigo-700 text-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center text-xl shadow">
+          <i class="fa-solid fa-warehouse"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-wide">Warehouse Management System</h1>
+          <p class="text-xs text-indigo-200">Gudang Admin (db_gudang) | Port: 3001</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 text-sm">
+        <span id="db-status-badge" class="px-3 py-1 bg-yellow-400 text-yellow-900 rounded-full text-xs font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-circle text-[8px] animate-pulse"></i> Mengecek DB...
+        </span>
+        <button onclick="refreshAll()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition shadow-sm">
+          <i class="fa-solid fa-arrows-rotate mr-1"></i> Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="max-w-7xl mx-auto px-4 mt-6">
+    <div class="flex border-b border-slate-200 space-x-2">
+      <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-btn px-5 py-3 font-semibold text-sm border-b-2 border-indigo-600 text-indigo-700 flex items-center gap-2">
+        <i class="fa-solid fa-boxes-stacked"></i> 1. Inventory & Monitoring Stok
+      </button>
+      <button onclick="switchTab('inbound')" id="tab-btn-inbound" class="tab-btn px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2">
+        <i class="fa-solid fa-truck-ramp-box"></i> 2. Inbound (Barang Masuk)
+      </button>
+      <button onclick="switchTab('outbound')" id="tab-btn-outbound" class="tab-btn px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2">
+        <i class="fa-solid fa-truck-fast"></i> 3. Outbound (Kirim ke Toko)
+      </button>
+    </div>
+  </div>
+
+  <!-- Content Container -->
+  <main class="max-w-7xl mx-auto px-4 py-6">
+
+    <!-- ==================== TAB 1: INVENTORY ==================== -->
+    <section id="tab-inventory" class="tab-content block">
+      <div class="flex flex-wrap justify-between items-center mb-4 gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800">Daftar Barang & Stok Total Gudang</h2>
+          <p class="text-xs text-slate-500">Monitoring real-time ketersediaan barang di gudang utama</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="openModal('modal-item')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Tambah Master Barang
+          </button>
+          <button onclick="openModal('modal-supplier')" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow flex items-center gap-1">
+            <i class="fa-solid fa-building"></i> Tambah Supplier
+          </button>
+        </div>
+      </div>
+
+      <!-- Inventory Table -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs font-semibold tracking-wider">
+            <tr>
+              <th class="p-3">ID</th>
+              <th class="p-3">SKU</th>
+              <th class="p-3">Barcode</th>
+              <th class="p-3">Nama Barang</th>
+              <th class="p-3 text-right">Harga (Rp)</th>
+              <th class="p-3 text-center">Stok Gudang</th>
+              <th class="p-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-tbody" class="divide-y divide-slate-100">
+            <tr>
+              <td colspan="7" class="p-8 text-center text-slate-400">Memuat data inventaris...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: INBOUND ==================== -->
+    <section id="tab-inbound" class="tab-content hidden space-y-6">
+      <!-- Form Inbound -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+        <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-dolly text-indigo-600"></i> Buat Dokumen Inbound (Penerimaan dari Supplier)
+        </h3>
+        <form id="form-inbound" onsubmit="handleInboundSubmit(event)" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Nomor Dokumen Inbound</label>
+              <input type="text" id="inbound-doc-no" required placeholder="Contoh: INB-20261029-001" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Supplier</label>
+              <select id="inbound-supplier" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                <option value="">-- Pilih Supplier --</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Dynamic Item Rows -->
+          <div class="border-t pt-3">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-bold text-slate-700">Daftar Barang Masuk</span>
+              <button type="button" onclick="addInboundItemRow()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1">
+                <i class="fa-solid fa-plus-circle"></i> Tambah Baris Barang
+              </button>
+            </div>
+            <div id="inbound-items-container" class="space-y-2">
+              <!-- Item Row Template -->
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow">
+              <i class="fa-solid fa-check mr-1"></i> Simpan Inbound & Tambah Stok
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Inbound History -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 bg-slate-50 border-b font-bold text-sm text-slate-700">Riwayat Inbound Terakhir</div>
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs font-semibold">
+            <tr>
+              <th class="p-3">Doc No</th>
+              <th class="p-3">Supplier</th>
+              <th class="p-3">Tanggal</th>
+              <th class="p-3 text-center">Total Item</th>
+              <th class="p-3 text-center">Total Qty</th>
+              <th class="p-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="inbound-history-tbody" class="divide-y divide-slate-100">
+            <tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada riwayat inbound</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: OUTBOUND ==================== -->
+    <section id="tab-outbound" class="tab-content hidden space-y-6">
+      <!-- Form Outbound -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+        <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-truck-moving text-indigo-600"></i> Buat Surat Jalan Outbound (Kirim ke Toko)
+        </h3>
+        <p class="text-xs text-slate-500 mb-3">Stok gudang akan langsung dipotong. Dokumen ini yang nanti dipilih oleh staf toko saat proses Putaway.</p>
+        <form id="form-outbound" onsubmit="handleOutboundSubmit(event)" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Nomor Surat Jalan (Doc No)</label>
+              <input type="text" id="outbound-doc-no" required placeholder="Contoh: OUT-20261029-001" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Tujuan Pengiriman</label>
+              <input type="text" id="outbound-dest" value="Toko Utama" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+            </div>
+          </div>
+
+          <!-- Dynamic Item Rows -->
+          <div class="border-t pt-3">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-bold text-slate-700">Daftar Barang yang Dikirim</span>
+              <button type="button" onclick="addOutboundItemRow()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1">
+                <i class="fa-solid fa-plus-circle"></i> Tambah Baris Barang
+              </button>
+            </div>
+            <div id="outbound-items-container" class="space-y-2">
+              <!-- Item Row Template -->
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow">
+              <i class="fa-solid fa-paper-plane mr-1"></i> Terbitkan Dokumen (Kirim ke Toko)
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Outbound History -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 bg-slate-50 border-b font-bold text-sm text-slate-700">Riwayat Dokumen Outbound & Status Putaway Toko</div>
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs font-semibold">
+            <tr>
+              <th class="p-3">Doc No</th>
+              <th class="p-3">Tujuan</th>
+              <th class="p-3">Tanggal</th>
+              <th class="p-3 text-center">Total Item</th>
+              <th class="p-3 text-center">Total Qty</th>
+              <th class="p-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="outbound-history-tbody" class="divide-y divide-slate-100">
+            <tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada riwayat outbound</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: Tambah Master Barang -->
+  <div id="modal-item" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-5 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-bold text-slate-800">Tambah Master Barang Baru</h3>
+        <button onclick="closeModal('modal-item')" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+      </div>
+      <form onsubmit="handleAddItem(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">SKU</label>
+          <input type="text" id="new-item-sku" required placeholder="Contoh: MILO-3IN1" class="w-full px-3 py-2 border rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Barcode Barang</label>
+          <input type="text" id="new-item-barcode" required placeholder="Contoh: 8991001" class="w-full px-3 py-2 border rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Nama Barang</label>
+          <input type="text" id="new-item-name" required placeholder="Contoh: Milo 3in1 Sachet" class="w-full px-3 py-2 border rounded-lg text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Harga Jual (Rp)</label>
+            <input type="number" id="new-item-price" min="0" required placeholder="3500" class="w-full px-3 py-2 border rounded-lg text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Stok Awal Gudang</label>
+            <input type="number" id="new-item-qty" min="0" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="closeModal('modal-item')" class="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold">Simpan Barang</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Tambah Supplier -->
+  <div id="modal-supplier" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-sm w-full p-5 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-bold text-slate-800">Tambah Data Supplier</h3>
+        <button onclick="closeModal('modal-supplier')" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+      </div>
+      <form onsubmit="handleAddSupplier(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Nama Supplier</label>
+          <input type="text" id="new-supplier-name" required placeholder="Contoh: PT Sumber Pangan" class="w-full px-3 py-2 border rounded-lg text-sm">
+        </div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="closeModal('modal-supplier')" class="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let globalItems = [];
+    let globalSuppliers = [];
+
+    // Switch Tabs
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-indigo-600', 'text-indigo-700');
+        btn.classList.add('border-transparent', 'text-slate-500');
+      });
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+      const activeContent = document.getElementById(`tab-${tabId}`);
+      if (activeBtn && activeContent) {
+        activeBtn.classList.add('border-indigo-600', 'text-indigo-700');
+        activeBtn.classList.remove('border-transparent', 'text-slate-500');
+        activeContent.classList.remove('hidden');
+      }
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    // Check DB Status
+    async function checkDb() {
+      const badge = document.getElementById('db-status-badge');
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          badge.className = 'px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold flex items-center gap-1';
+          badge.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> DB Connected';
+        } else {
+          throw new Error();
+        }
+      } catch {
+        badge.className = 'px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-semibold flex items-center gap-1';
+        badge.innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-600"></i> DB Disconnected';
+      }
+    }
+
+    // Load Items
+    async function loadItems() {
+      try {
+        const res = await fetch('/api/items');
+        globalItems = await res.json();
+        const tbody = document.getElementById('inventory-tbody');
+        if (globalItems.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">Belum ada barang di database</td></tr>';
+          return;
+        }
+        tbody.innerHTML = globalItems.map(item => `
+          <tr class="hover:bg-slate-50 transition border-b">
+            <td class="p-3 text-slate-500 font-mono text-xs">${item.id}</td>
+            <td class="p-3 font-semibold text-slate-700">${item.sku}</td>
+            <td class="p-3 font-mono text-xs bg-slate-50 rounded px-2 py-1">${item.barcode}</td>
+            <td class="p-3 font-medium text-slate-800">${item.name}</td>
+            <td class="p-3 text-right font-mono">Rp ${Number(item.price).toLocaleString('id-ID')}</td>
+            <td class="p-3 text-center">
+              <span class="inline-block px-3 py-1 font-bold rounded-full text-xs ${item.stock_qty > 10 ? 'bg-emerald-100 text-emerald-800' : (item.stock_qty > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')}">
+                ${item.stock_qty} pcs
+              </span>
+            </td>
+            <td class="p-3 text-center text-xs">
+              ${item.stock_qty > 0 ? '<span class="text-emerald-600 font-medium">Tersedia</span>' : '<span class="text-rose-600 font-medium">Habis</span>'}
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Load Suppliers
+    async function loadSuppliers() {
+      try {
+        const res = await fetch('/api/suppliers');
+        globalSuppliers = await res.json();
+        const select = document.getElementById('inbound-supplier');
+        select.innerHTML = '<option value="">-- Pilih Supplier --</option>' +
+          globalSuppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Load Inbounds
+    async function loadInbounds() {
+      try {
+        const res = await fetch('/api/inbound');
+        const rows = await res.json();
+        const tbody = document.getElementById('inbound-history-tbody');
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada riwayat inbound</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(r => `
+          <tr class="hover:bg-slate-50 border-b">
+            <td class="p-3 font-mono font-semibold text-indigo-700">${r.doc_no}</td>
+            <td class="p-3 text-slate-700">${r.supplier_name || '-'}</td>
+            <td class="p-3 text-xs text-slate-500">${new Date(r.date).toLocaleString('id-ID')}</td>
+            <td class="p-3 text-center">${r.total_items} jenis</td>
+            <td class="p-3 text-center font-bold text-slate-700">${r.total_qty} pcs</td>
+            <td class="p-3 text-center">
+              <span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">${r.status}</span>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Load Outbounds
+    async function loadOutbounds() {
+      try {
+        const res = await fetch('/api/outbound');
+        const rows = await res.json();
+        const tbody = document.getElementById('outbound-history-tbody');
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada riwayat outbound</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(r => `
+          <tr class="hover:bg-slate-50 border-b">
+            <td class="p-3 font-mono font-semibold text-emerald-700">${r.doc_no}</td>
+            <td class="p-3 text-slate-700 font-medium">${r.destination_store || 'Toko'}</td>
+            <td class="p-3 text-xs text-slate-500">${new Date(r.date).toLocaleString('id-ID')}</td>
+            <td class="p-3 text-center">${r.total_items} jenis</td>
+            <td class="p-3 text-center font-bold text-slate-700">${r.total_qty} pcs</td>
+            <td class="p-3 text-center">
+              <span class="px-2 py-1 rounded text-xs font-semibold ${r.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'}">
+                ${r.status === 'SENT' ? '🚚 SENT (Dalam Kirim)' : '✔ RECEIVED (Diterima Toko)'}
+              </span>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Dynamic Row Helpers
+    function renderItemOptions() {
+      return globalItems.map(it => `<option value="${it.id}">${it.name} (${it.sku} | Stok: ${it.stock_qty})</option>`).join('');
+    }
+
+    function addInboundItemRow() {
+      const container = document.getElementById('inbound-items-container');
+      const row = document.createElement('div');
+      row.className = 'flex gap-2 items-center';
+      row.innerHTML = `
+        <select class="item-select flex-1 px-3 py-2 border rounded-lg text-sm" required>
+          <option value="">-- Pilih Barang --</option>
+          ${renderItemOptions()}
+        </select>
+        <input type="number" min="1" value="10" placeholder="Qty" class="item-qty w-28 px-3 py-2 border rounded-lg text-sm text-center" required>
+        <button type="button" onclick="this.parentElement.remove()" class="text-rose-500 hover:text-rose-700 p-2 text-sm"><i class="fa-solid fa-trash"></i></button>
+      `;
+      container.appendChild(row);
+    }
+
+    function addOutboundItemRow() {
+      const container = document.getElementById('outbound-items-container');
+      const row = document.createElement('div');
+      row.className = 'flex gap-2 items-center';
+      row.innerHTML = `
+        <select class="item-select flex-1 px-3 py-2 border rounded-lg text-sm" required>
+          <option value="">-- Pilih Barang --</option>
+          ${renderItemOptions()}
+        </select>
+        <input type="number" min="1" value="5" placeholder="Qty" class="item-qty w-28 px-3 py-2 border rounded-lg text-sm text-center" required>
+        <button type="button" onclick="this.parentElement.remove()" class="text-rose-500 hover:text-rose-700 p-2 text-sm"><i class="fa-solid fa-trash"></i></button>
+      `;
+      container.appendChild(row);
+    }
+
+    // Submit Inbound
+    async function handleInboundSubmit(e) {
+      e.preventDefault();
+      const doc_no = document.getElementById('inbound-doc-no').value;
+      const supplier_id = document.getElementById('inbound-supplier').value;
+      const rows = document.querySelectorAll('#inbound-items-container > div');
+      
+      const items = [];
+      rows.forEach(r => {
+        const item_id = r.querySelector('.item-select').value;
+        const qty = r.querySelector('.item-qty').value;
+        if (item_id && qty > 0) items.push({ item_id, qty: Number(qty) });
+      });
+
+      if (items.length === 0) {
+        alert('Tambahkan minimal satu barang untuk inbound!');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/inbound', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doc_no, supplier_id, items })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        alert('Berhasil! ' + result.message);
+        document.getElementById('form-inbound').reset();
+        document.getElementById('inbound-items-container').innerHTML = '';
+        autoGenInboundDoc();
+        addInboundItemRow();
+        refreshAll();
+      } catch (err) {
+        alert('Gagal simpan inbound: ' + err.message);
+      }
+    }
+
+    // Submit Outbound
+    async function handleOutboundSubmit(e) {
+      e.preventDefault();
+      const doc_no = document.getElementById('outbound-doc-no').value;
+      const destination_store = document.getElementById('outbound-dest').value;
+      const rows = document.querySelectorAll('#outbound-items-container > div');
+      
+      const items = [];
+      rows.forEach(r => {
+        const item_id = r.querySelector('.item-select').value;
+        const qty = r.querySelector('.item-qty').value;
+        if (item_id && qty > 0) items.push({ item_id, qty: Number(qty) });
+      });
+
+      if (items.length === 0) {
+        alert('Tambahkan minimal satu barang untuk dikirim ke toko!');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/outbound', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doc_no, destination_store, items })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        alert('Berhasil! ' + result.message);
+        document.getElementById('form-outbound').reset();
+        document.getElementById('outbound-items-container').innerHTML = '';
+        autoGenOutboundDoc();
+        addOutboundItemRow();
+        refreshAll();
+      } catch (err) {
+        alert('Gagal simpan outbound: ' + err.message);
+      }
+    }
+
+    // Add Item
+    async function handleAddItem(e) {
+      e.preventDefault();
+      const sku = document.getElementById('new-item-sku').value;
+      const barcode = document.getElementById('new-item-barcode').value;
+      const name = document.getElementById('new-item-name').value;
+      const price = document.getElementById('new-item-price').value;
+      const initial_qty = document.getElementById('new-item-qty').value;
+
+      try {
+        const res = await fetch('/api/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku, barcode, name, price, initial_qty })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        alert('Master barang berhasil disimpan!');
+        closeModal('modal-item');
+        refreshAll();
+      } catch (err) {
+        alert('Gagal: ' + err.message);
+      }
+    }
+
+    // Add Supplier
+    async function handleAddSupplier(e) {
+      e.preventDefault();
+      const name = document.getElementById('new-supplier-name').value;
+      try {
+        const res = await fetch('/api/suppliers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        alert('Supplier berhasil ditambahkan!');
+        closeModal('modal-supplier');
+        loadSuppliers();
+      } catch (err) {
+        alert('Gagal: ' + err.message);
+      }
+    }
+
+    function autoGenInboundDoc() {
+      const now = new Date();
+      const code = 'INB-' + now.toISOString().slice(0,10).replace(/-/g, '') + '-' + Math.floor(100 + Math.random() * 900);
+      document.getElementById('inbound-doc-no').value = code;
+    }
+
+    function autoGenOutboundDoc() {
+      const now = new Date();
+      const code = 'OUT-' + now.toISOString().slice(0,10).replace(/-/g, '') + '-' + Math.floor(100 + Math.random() * 900);
+      document.getElementById('outbound-doc-no').value = code;
+    }
+
+    function refreshAll() {
+      checkDb();
+      loadItems().then(() => {
+        loadSuppliers();
+        loadInbounds();
+        loadOutbounds();
+      });
+    }
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      autoGenInboundDoc();
+      autoGenOutboundDoc();
+      addInboundItemRow();
+      addOutboundItemRow();
+      refreshAll();
+    });
+  </script>
+</body>
+</html>
+

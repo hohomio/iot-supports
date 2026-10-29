@@ -1,0 +1,20 @@
+{
+  "name": "iot-supports",
+  "version": "1.0.0",
+  "description": "Software Pendukung IoT: Gudang, Toko Putaway, dan POS Kasir",
+  "main": "index.js",
+  "scripts": {
+    "db:init": "node database/init.js",
+    "start:gudang": "node gudang-support/server.js",
+    "start:toko": "node toko-support/server.js",
+    "start:pos": "node pos-support/server.js",
+    "start": "node start-all.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mysql2": "^3.12.0"
+  }
+}
+
